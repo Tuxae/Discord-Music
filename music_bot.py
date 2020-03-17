@@ -4,7 +4,7 @@ import discord
 import youtube_dl
 
 from discord.ext import commands
-from my_constants import TOKEN
+from my_constants import TOKEN, DEFAULT_CHANNEL
 
 # Suppress noise about console usage from errors
 youtube_dl.utils.bug_reports_message = lambda: ''
@@ -59,8 +59,9 @@ class Music(commands.Cog):
 
     @commands.command()
     async def join(self, ctx, *, channel: discord.VoiceChannel):
-        """Joins a voice channel"""
+        """Se connecter au channel donné en argument. Rejoins le channel général sinon."""
 
+        print(channel)
         if ctx.voice_client is not None:
             return await ctx.voice_client.move_to(channel)
 
@@ -68,7 +69,7 @@ class Music(commands.Cog):
 
     @commands.command()
     async def play(self, ctx, *, query):
-        """Plays a file from the local filesystem"""
+        """Joue un fichier en local, présent sur le disque dur"""
 
         source = discord.PCMVolumeTransformer(discord.FFmpegPCMAudio(query))
         ctx.voice_client.play(source, after=lambda e: print('Player error: %s' % e) if e else None)
@@ -77,17 +78,17 @@ class Music(commands.Cog):
 
     @commands.command()
     async def yt(self, ctx, *, url):
-        """Plays from a url (almost anything youtube_dl supports)"""
+        """Joue à partir d'une URL (tout ce que youtube_dl supporte)"""
 
         async with ctx.typing():
             player = await YTDLSource.from_url(url, loop=self.bot.loop)
             ctx.voice_client.play(player, after=lambda e: print('Player error: %s' % e) if e else None)
 
-        await ctx.send('Now playing: {}'.format(player.title))
+        await ctx.send('Maintenant, dans vos douces oreilles: {}'.format(player.title))
 
     @commands.command()
     async def stream(self, ctx, *, url):
-        """Streams from a url (same as yt, but doesn't predownload)"""
+        """Comme la fonction yt, mais il ne télécharge pas la musique en local"""
 
         async with ctx.typing():
             player = await YTDLSource.from_url(url, loop=self.bot.loop, stream=True)
@@ -97,17 +98,41 @@ class Music(commands.Cog):
 
     @commands.command()
     async def volume(self, ctx, volume: int):
-        """Changes the player's volume"""
+        """Change le volume sonore"""
 
         if ctx.voice_client is None:
-            return await ctx.send("Not connected to a voice channel.")
+            return await ctx.send("Pour changer le volume, il faudrait déjà que je sois connecté sur un channel vocal !")
+
+        if volume > 150:
+            return await ctx.send("Tu veux qu'on devienne sourd ?")
+        
+        if volume < 0:
+            return await ctx.send("Un volume dans le négatif. On aura tout vu...")
 
         ctx.voice_client.source.volume = volume / 100
-        await ctx.send("Changed volume to {}%".format(volume))
+        await ctx.send("Volume reglé sur {}%".format(volume))
+    
+    @commands.command()
+    async def pause(self, ctx):
+        """Met en pause la musique"""
+
+        ctx.voice_client.pause()
 
     @commands.command()
+    async def resume(self, ctx):
+        """Relance la musique"""
+
+        ctx.voice_client.resume()
+    
+    @commands.command()
     async def stop(self, ctx):
-        """Stops and disconnects the bot from voice"""
+        """Arrête la musique"""
+
+        ctx.voice_client.stop()
+
+    @commands.command()
+    async def disconnect(self, ctx):
+        """Se déconnecte du channel vocal"""
 
         await ctx.voice_client.disconnect()
 
@@ -125,7 +150,7 @@ class Music(commands.Cog):
             ctx.voice_client.stop()
 
 bot = commands.Bot(command_prefix=commands.when_mentioned_or("!"),
-                   description="Et c'eeeest parti pour de la zikmu !!")
+        description="DJ Botlavoine pour vous servir :-)")
 
 @bot.event
 async def on_ready():
