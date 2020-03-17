@@ -4,7 +4,9 @@ import discord
 import youtube_dl
 
 from discord.ext import commands
+
 from my_constants import TOKEN, DEFAULT_CHANNEL
+from playlist import Playlist
 
 # Suppress noise about console usage from errors
 youtube_dl.utils.bug_reports_message = lambda: ''
@@ -56,12 +58,12 @@ class YTDLSource(discord.PCMVolumeTransformer):
 class Music(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.radio = False
 
     @commands.command()
     async def join(self, ctx, *, channel: discord.VoiceChannel):
         """Se connecter au channel donné en argument. Rejoins le channel général sinon."""
 
-        print(channel)
         if ctx.voice_client is not None:
             return await ctx.voice_client.move_to(channel)
 
@@ -87,6 +89,24 @@ class Music(commands.Cog):
         await ctx.send('Maintenant, dans vos douces oreilles: {}'.format(player.title))
 
     @commands.command()
+    async def radio(self, ctx, *, mode):
+        """Active le mode radio."""
+
+        self.radio = mode
+
+        playlist = Playlist()
+        while(self.radio):
+            for url in playlist.get_urls():
+                async with ctx.typing():
+                    player = await YTDLSource.from_url(url, loop=self.bot.loop, stream=True)
+                    #print(player.data)
+                    ctx.voice_client.play(player, after=lambda e: print('Player error: %s' % e) if e else None)
+                    await ctx.send('{} - {} '.format(player.data['uploader'], player.data['title']))
+                # Sleep 1 second
+                await asyncio.sleep(player.data['duration'] + 1) 
+
+
+    @commands.command()
     async def stream(self, ctx, *, url):
         """Comme la fonction yt, mais il ne télécharge pas la musique en local"""
 
@@ -94,7 +114,7 @@ class Music(commands.Cog):
             player = await YTDLSource.from_url(url, loop=self.bot.loop, stream=True)
             ctx.voice_client.play(player, after=lambda e: print('Player error: %s' % e) if e else None)
 
-        await ctx.send('Now playing: {}'.format(player.title))
+        await ctx.send('{} - {} '.format(player.uploader, player.title))
 
     @commands.command()
     async def volume(self, ctx, volume: int):
@@ -156,6 +176,8 @@ bot = commands.Bot(command_prefix=commands.when_mentioned_or("!"),
 async def on_ready():
     print('Logged in as {0} ({0.id})'.format(bot.user))
     print('------')
+    channel = bot.get_channel(DEFAULT_CHANNEL)
+    await channel.connect()
 
 bot.add_cog(Music(bot))
 bot.run(TOKEN)
